@@ -32,4 +32,11 @@ var testCases = []testCase{
 		l2Penalty: 0.5,
 		expected:  mat64.NewVector(3, []float64{-0.06, 0.12, 0.18}),
 	},
+	{
+		name:      "same as OLS",
+		x:         mat64.NewDense(3, 2, []float64{0, 0, 0, 0, 1, 1}),
+		y:         mat64.NewVector(3, []float64{0, 0.1, 1}),
+		l2Penalty: 0.0,
+		expected:  mat64.NewVector(2, []float64{0.95, 0.0}),
+	},
 }
