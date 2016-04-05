@@ -5,17 +5,24 @@ import (
 	"github.com/gonum/matrix"
 	"github.com/gonum/matrix/mat64"
 
+	"fmt"
 	"math"
 )
 
 const BasicallyZero = 1.0e-15
 
+func fmtMat(mat mat64.Matrix) fmt.Formatter {
+	return mat64.Formatted(mat, mat64.Excerpt(2), mat64.Squeeze())
+}
+
 type RidgeRegression struct {
 	X            *mat64.Dense
 	XSVD         *mat64.SVD
+	XScaled      *mat64.Dense
 	Y            *mat64.Vector
+	Scales       *mat64.Vector
 	L2Penalty    float64
-	Coefficients []float64
+	Coefficients *mat64.Vector
 	Fitted       []float64
 	Residuals    []float64
 }
@@ -33,11 +40,12 @@ func New(x *mat64.Dense, y *mat64.Vector, l2Penalty float64) *RidgeRegression {
 
 // Regress runs the ridge regression to calculate coefficients.
 func (r *RidgeRegression) Regress() {
+	r.scaleX()
 	r.solveSVD()
 	xr, _ := r.X.Dims()
 
 	fitted := mat64.NewVector(xr, nil)
-	fitted.MulVec(r.X, mat64.NewVector(len(r.Coefficients), r.Coefficients))
+	fitted.MulVec(r.X, r.Coefficients)
 	r.Fitted = fitted.RawVector().Data
 
 	for i := range r.Residuals {
@@ -45,13 +53,34 @@ func (r *RidgeRegression) Regress() {
 	}
 }
 
+func (r *RidgeRegression) scaleX() {
+	xr, xc := r.X.Dims()
+	scaleData := make([]float64, xr)
+	scalar := 1.0 / float64(xr)
+	for i := range scaleData {
+		scaleData[i] = scalar
+	}
+	scaleMat := mat64.NewDense(1, xr, scaleData)
+	sqX := mat64.NewDense(xr, xc, nil)
+	sqX.MulElem(r.X, r.X)
+
+	scales := mat64.NewDense(1, xc, nil)
+	scales.Mul(scaleMat, sqX)
+	sqrtElem := func(i, j int, v float64) float64 { return math.Sqrt(v) }
+	scales.Apply(sqrtElem, scales)
+	r.Scales = mat64.NewVector(xc, scales.RawRowView(0))
+	r.XScaled = mat64.NewDense(xr, xc, nil)
+	scale := func(i, j int, v float64) float64 { return v / r.Scales.At(j, 0) }
+	r.XScaled.Apply(scale, r.X)
+}
+
 func (r *RidgeRegression) solveSVD() {
 	if r.XSVD == nil || r.XSVD.Kind() == 0 {
 		r.XSVD = new(mat64.SVD)
-		r.XSVD.Factorize(r.X, matrix.SVDThin)
+		r.XSVD.Factorize(r.XScaled, matrix.SVDThin)
 	}
 
-	xr, xc := r.X.Dims()
+	xr, xc := r.XScaled.Dims()
 	xMinDim := int(math.Min(float64(xr), float64(xc)))
 
 	u := mat64.NewDense(xr, xMinDim, nil)
@@ -80,7 +109,8 @@ func (r *RidgeRegression) solveSVD() {
 	coef := mat64.NewVector(xc, nil)
 	coef.MulVec(v, duty)
 
-	r.Coefficients = coef.RawVector().Data
+	r.Coefficients = mat64.NewVector(xc, nil)
+	r.Coefficients.DivElemVec(coef, r.Scales)
 }
 
 func getDiag(mat mat64.Matrix) []float64 {

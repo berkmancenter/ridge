@@ -4,39 +4,67 @@ import "github.com/gonum/matrix/mat64"
 
 type testCase struct {
 	name      string
-	x         *mat64.Dense
-	y         *mat64.Vector
+	skip      bool
+	data      dataSet
 	l2Penalty float64
 	expected  *mat64.Vector
 }
 
+type dataSet struct {
+	x *mat64.Dense
+	y *mat64.Vector
+}
+
+// These are run against lm.ridge in package MASS in R.
 var testCases = []testCase{
 	{
-		name:      "more samples than features",
-		x:         mat64.NewDense(3, 2, []float64{0, 0, 0, 0, 1, 1}),
-		y:         mat64.NewVector(3, []float64{0, 0.1, 1}),
+		name: "more samples than features",
+		data: dataSet{
+			x: mat64.NewDense(3, 2, []float64{0, 0, 0, 0, 1, 1}),
+			y: mat64.NewVector(3, []float64{0, 0.1, 1}),
+		},
 		l2Penalty: 1.0,
-		expected:  mat64.NewVector(2, []float64{0.27142857, 0.27142857}),
+		expected:  mat64.NewVector(2, []float64{0.4285714, 0.4285714}),
 	},
 	{
-		name:      "more features than samples",
-		x:         mat64.NewDense(2, 3, []float64{1, 0, 0, 0, 2, 3}),
-		y:         mat64.NewVector(2, []float64{0.1, 1}),
+		name: "more features than samples",
+		data: dataSet{
+			x: mat64.NewDense(2, 3, []float64{1, 0, 0, 0, 2, 3}),
+			y: mat64.NewVector(2, []float64{0.1, 1}),
+		},
 		l2Penalty: 1.0,
-		expected:  mat64.NewVector(3, []float64{-0.05625, 0.1125, 0.16875}),
+		expected:  mat64.NewVector(3, []float64{0.06666667, 0.20000000, 0.13333333}),
 	},
 	{
-		name:      "non-default l2 penalty",
-		x:         mat64.NewDense(2, 3, []float64{1, 0, 0, 0, 2, 3}),
-		y:         mat64.NewVector(2, []float64{0.1, 1}),
+		name: "non-default l2 penalty",
+		data: dataSet{
+			x: mat64.NewDense(2, 3, []float64{1, 0, 0, 0, 2, 3}),
+			y: mat64.NewVector(2, []float64{0.1, 1}),
+		},
 		l2Penalty: 0.5,
-		expected:  mat64.NewVector(3, []float64{-0.06, 0.12, 0.18}),
+		expected:  mat64.NewVector(3, []float64{0.0800000, 0.2222222, 0.1481481}),
 	},
 	{
-		name:      "same as OLS",
-		x:         mat64.NewDense(3, 2, []float64{0, 0, 0, 0, 1, 1}),
-		y:         mat64.NewVector(3, []float64{0, 0.1, 1}),
+		// This isn't the same as OLS in R. Not sure why. I don't try to match OLS,
+		// but instead match the lm.ridge behavior.
+		name: "same as OLS",
+		data: dataSet{
+			x: mat64.NewDense(2, 3, []float64{1, 0, 0, 0, 2, 3}),
+			y: mat64.NewVector(2, []float64{0.1, 1}),
+		},
 		l2Penalty: 0.0,
-		expected:  mat64.NewVector(2, []float64{0.95, 0.0}),
+		expected:  mat64.NewVector(3, []float64{0.1000000, 0.2500000, 0.1666667}),
+	},
+	{
+		name:      "iris data",
+		l2Penalty: 1.0,
+		data:      iris,
+		expected:  mat64.NewVector(3, []float64{1.1664384, 0.6854012, -0.2890332}),
+	},
+	{
+		name:      "iris data different l2 penalty",
+		l2Penalty: 0.5,
+		data:      iris,
+		expected:  mat64.NewVector(3, []float64{1.1523371, 0.7729191, -0.5160199}),
 	},
 }
