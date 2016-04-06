@@ -18,6 +18,9 @@ func fmtMat(mat mat64.Matrix) fmt.Formatter {
 type RidgeRegression struct {
 	X            *mat64.Dense
 	XSVD         *mat64.SVD
+	U            *mat64.Dense
+	D            *mat64.Dense
+	V            *mat64.Dense
 	XScaled      *mat64.Dense
 	Y            *mat64.Vector
 	Scales       *mat64.Vector
@@ -25,6 +28,7 @@ type RidgeRegression struct {
 	Coefficients *mat64.Vector
 	Fitted       []float64
 	Residuals    []float64
+	StdErrs      []float64
 }
 
 // New returns a new ridge regression.
@@ -51,6 +55,8 @@ func (r *RidgeRegression) Regress() {
 	for i := range r.Residuals {
 		r.Residuals[i] = r.Y.At(i, 0) - r.Fitted[i]
 	}
+
+	r.calcStdErr()
 }
 
 func (r *RidgeRegression) scaleX() {
@@ -85,6 +91,7 @@ func (r *RidgeRegression) solveSVD() {
 
 	u := mat64.NewDense(xr, xMinDim, nil)
 	u.UFromSVD(r.XSVD)
+	r.U = u
 
 	s := r.XSVD.Values(nil)
 	for i := 0; i < len(s); i++ {
@@ -96,9 +103,11 @@ func (r *RidgeRegression) solveSVD() {
 	}
 	d := mat64.NewDense(len(s), len(s), nil)
 	setDiag(d, s)
+	r.D = d
 
 	v := mat64.NewDense(xc, xMinDim, nil)
 	v.VFromSVD(r.XSVD)
+	r.V = v
 
 	uty := mat64.NewVector(xMinDim, nil)
 	uty.MulVec(u.T(), r.Y)
@@ -111,6 +120,37 @@ func (r *RidgeRegression) solveSVD() {
 
 	r.Coefficients = mat64.NewVector(xc, nil)
 	r.Coefficients.DivElemVec(coef, r.Scales)
+}
+
+// http://stats.stackexchange.com/a/2126
+// http://www.ncbi.nlm.nih.gov/pmc/articles/PMC3228544/
+func (r *RidgeRegression) calcStdErr() {
+	xr, xc := r.X.Dims()
+	xMinDim := int(math.Min(float64(xr), float64(xc)))
+	errVari := 0.0
+	for _, v := range r.Residuals {
+		errVari += v * v
+	}
+	errVari /= float64(xr - xc)
+	errVariMat := mat64.NewDense(xr, xr, nil)
+	for i := 0; i < xr; i++ {
+		errVariMat.Set(i, i, errVari)
+	}
+
+	//    V                   D                   UT        Z
+	// xc x xMinDim * xMinDim x xMinDim * xMinDim x xr = xc x xr
+	vd := mat64.NewDense(xc, xMinDim, nil)
+	vd.Mul(r.V, r.D)
+	z := mat64.NewDense(xc, xr, nil)
+	z.Mul(vd, r.U.T())
+
+	//    Z       ErrVar      ZT
+	// xc x xr * xr x xr * xr x xc
+	zerr := mat64.NewDense(xc, xr, nil)
+	zerr.Mul(z, errVariMat)
+	coefCovarMat := mat64.NewDense(xc, xc, nil)
+	coefCovarMat.Mul(zerr, z.T())
+	r.StdErrs = getDiag(coefCovarMat)
 }
 
 func getDiag(mat mat64.Matrix) []float64 {
