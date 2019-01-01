@@ -91,10 +91,9 @@ func (r *RidgeRegression) solveSVD() {
 	xr, xc := r.XScaled.Dims()
 	xMinDim := int(math.Min(float64(xr), float64(xc)))
 
-	//u := mat.NewDense(xr, xMinDim, nil)
-	//u = r.XSVD.UTo(u)
+	u := mat.NewDense(xr, xMinDim, nil)
+	_ = r.XSVD.UTo(u)
 	//u.UFromSVD(r.XSVD)
-	u := mat.NewDense(xr, xMinDim, r.XSVD.Values(nil))
 	r.U = u
 
 	s := r.XSVD.Values(nil)
@@ -109,10 +108,9 @@ func (r *RidgeRegression) solveSVD() {
 	setDiag(d, s)
 	r.D = d
 
-	//v := mat.NewDense(xc, xMinDim, nil)
-	//v = r.XSVD.VTo(v)
+	v := mat.NewDense(xc, xMinDim, nil)
+	_ = r.XSVD.VTo(v)
 	//v.VFromSVD(r.XSVD)
-	v := mat.NewDense(xc, xMinDim, r.XSVD.Values(nil))
 	r.V = v
 
 	uty := mat.NewVecDense(xMinDim, nil)
