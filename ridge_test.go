@@ -1,9 +1,9 @@
 package ridge
 
 import (
-	"github.com/gonum/matrix/mat64"
-
 	"testing"
+
+	"gonum.org/v1/gonum/mat"
 )
 
 func TestRegress(t *testing.T) {
@@ -14,7 +14,7 @@ func TestRegress(t *testing.T) {
 		r := New(test.data.x, test.data.y, test.l2Penalty)
 		r.Regress()
 		observed := r.Coefficients
-		if !mat64.EqualApprox(observed, test.expected, 0.001) {
+		if !mat.EqualApprox(observed, test.expected, 0.001) {
 			t.Errorf("Failed %v. Expected\n%v\nbut got\n%v\n",
 				test.name, fmtMat(test.expected), fmtMat(observed))
 		}
