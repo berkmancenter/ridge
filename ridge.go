@@ -3,6 +3,7 @@ package ridge
 
 import (
 	"fmt"
+	"log"
 
 	"gonum.org/v1/gonum/mat"
 
@@ -87,7 +88,7 @@ func (r *RidgeRegression) solveSVD() {
 		r.XSVD = new(mat.SVD)
 		r.XSVD.Factorize(r.XScaled, mat.SVDThin)
 	}
-	r.XSVD.Factorize(r.XScaled, mat.SVDThin)
+	log.Printf("kind %v %v %v", r.XSVD.Kind(), r.XSVD.Kind() == mat.SVDThin, r.XSVD.Kind() == mat.SVDFull)
 
 	xr, xc := r.XScaled.Dims()
 	xMinDim := int(math.Min(float64(xr), float64(xc)))
