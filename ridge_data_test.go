@@ -1,9 +1,9 @@
 package ridge
 
-import "github.com/gonum/matrix/mat64"
+import "gonum.org/v1/gonum/mat"
 
 var iris = dataSet{
-	x: mat64.NewDense(150, 3, []float64{
+	x: mat.NewDense(150, 3, []float64{
 		3.5, 1.4, 0.2,
 		3, 1.4, 0.2,
 		3.2, 1.3, 0.2,
@@ -155,7 +155,7 @@ var iris = dataSet{
 		3.4, 5.4, 2.3,
 		3, 5.1, 1.8,
 	}),
-	y: mat64.NewVector(150, []float64{
+	y: mat.NewVecDense(150, []float64{
 		5.1, 4.9, 4.7, 4.6, 5, 5.4, 4.6, 5, 4.4, 4.9, 5.4, 4.8, 4.8, 4.3,
 		5.8, 5.7, 5.4, 5.1, 5.7, 5.1, 5.4, 5.1, 4.6, 5.1, 4.8, 5, 5, 5.2,
 		5.2, 4.7, 4.8, 5.4, 5.2, 5.5, 4.9, 5, 5.5, 4.9, 4.4, 5.1, 5, 4.5,

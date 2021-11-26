@@ -2,8 +2,7 @@
 package ridge
 
 import (
-	"github.com/gonum/matrix"
-	"github.com/gonum/matrix/mat64"
+	"gonum.org/v1/gonum/mat"
 
 	"fmt"
 	"math"
@@ -11,28 +10,28 @@ import (
 
 const BasicallyZero = 1.0e-15
 
-func fmtMat(mat mat64.Matrix) fmt.Formatter {
-	return mat64.Formatted(mat, mat64.Excerpt(2), mat64.Squeeze())
+func fmtMat(m mat.Matrix) fmt.Formatter {
+	return mat.Formatted(m, mat.Excerpt(2), mat.Squeeze())
 }
 
 type RidgeRegression struct {
-	X            *mat64.Dense
-	XSVD         *mat64.SVD
-	U            *mat64.Dense
-	D            *mat64.Dense
-	V            *mat64.Dense
-	XScaled      *mat64.Dense
-	Y            *mat64.Vector
-	Scales       *mat64.Vector
+	X            *mat.Dense
+	XSVD         *mat.SVD
+	U            *mat.Dense
+	D            *mat.Dense
+	V            *mat.Dense
+	XScaled      *mat.Dense
+	Y            *mat.VecDense
+	Scales       *mat.VecDense
 	L2Penalty    float64
-	Coefficients *mat64.Vector
+	Coefficients *mat.VecDense
 	Fitted       []float64
 	Residuals    []float64
 	StdErrs      []float64
 }
 
 // New returns a new ridge regression.
-func New(x *mat64.Dense, y *mat64.Vector, l2Penalty float64) *RidgeRegression {
+func New(x *mat.Dense, y *mat.VecDense, l2Penalty float64) *RidgeRegression {
 	return &RidgeRegression{
 		X:         x,
 		Y:         y,
@@ -48,7 +47,7 @@ func (r *RidgeRegression) Regress() {
 	r.solveSVD()
 	xr, _ := r.X.Dims()
 
-	fitted := mat64.NewVector(xr, nil)
+	fitted := mat.NewVecDense(xr, nil)
 	fitted.MulVec(r.X, r.Coefficients)
 	r.Fitted = fitted.RawVector().Data
 
@@ -66,31 +65,31 @@ func (r *RidgeRegression) scaleX() {
 	for i := range scaleData {
 		scaleData[i] = scalar
 	}
-	scaleMat := mat64.NewDense(1, xr, scaleData)
-	sqX := mat64.NewDense(xr, xc, nil)
+	scaleMat := mat.NewDense(1, xr, scaleData)
+	sqX := mat.NewDense(xr, xc, nil)
 	sqX.MulElem(r.X, r.X)
 
-	scales := mat64.NewDense(1, xc, nil)
+	scales := mat.NewDense(1, xc, nil)
 	scales.Mul(scaleMat, sqX)
 	sqrtElem := func(i, j int, v float64) float64 { return math.Sqrt(v) }
 	scales.Apply(sqrtElem, scales)
-	r.Scales = mat64.NewVector(xc, scales.RawRowView(0))
-	r.XScaled = mat64.NewDense(xr, xc, nil)
+	r.Scales = mat.NewVecDense(xc, scales.RawRowView(0))
+	r.XScaled = mat.NewDense(xr, xc, nil)
 	scale := func(i, j int, v float64) float64 { return v / r.Scales.At(j, 0) }
 	r.XScaled.Apply(scale, r.X)
 }
 
 func (r *RidgeRegression) solveSVD() {
 	if r.XSVD == nil || r.XSVD.Kind() == 0 {
-		r.XSVD = new(mat64.SVD)
-		r.XSVD.Factorize(r.XScaled, matrix.SVDThin)
+		r.XSVD = new(mat.SVD)
+		r.XSVD.Factorize(r.XScaled, mat.SVDThin)
 	}
 
 	xr, xc := r.XScaled.Dims()
 	xMinDim := int(math.Min(float64(xr), float64(xc)))
 
-	u := mat64.NewDense(xr, xMinDim, nil)
-	u.UFromSVD(r.XSVD)
+	u := mat.NewDense(xr, xMinDim, nil)
+	r.XSVD.UTo(u)
 	r.U = u
 
 	s := r.XSVD.Values(nil)
@@ -101,24 +100,24 @@ func (r *RidgeRegression) solveSVD() {
 			s[i] = s[i] / (s[i]*s[i] + r.L2Penalty)
 		}
 	}
-	d := mat64.NewDense(len(s), len(s), nil)
+	d := mat.NewDense(len(s), len(s), nil)
 	setDiag(d, s)
 	r.D = d
 
-	v := mat64.NewDense(xc, xMinDim, nil)
-	v.VFromSVD(r.XSVD)
+	v := mat.NewDense(xc, xMinDim, nil)
+	r.XSVD.VTo(v)
 	r.V = v
 
-	uty := mat64.NewVector(xMinDim, nil)
+	uty := mat.NewVecDense(xMinDim, nil)
 	uty.MulVec(u.T(), r.Y)
 
-	duty := mat64.NewVector(len(s), nil)
+	duty := mat.NewVecDense(len(s), nil)
 	duty.MulVec(d, uty)
 
-	coef := mat64.NewVector(xc, nil)
+	coef := mat.NewVecDense(xc, nil)
 	coef.MulVec(v, duty)
 
-	r.Coefficients = mat64.NewVector(xc, nil)
+	r.Coefficients = mat.NewVecDense(xc, nil)
 	r.Coefficients.DivElemVec(coef, r.Scales)
 }
 
@@ -132,28 +131,28 @@ func (r *RidgeRegression) calcStdErr() {
 		errVari += v * v
 	}
 	errVari /= float64(xr - xc)
-	errVariMat := mat64.NewDense(xr, xr, nil)
+	errVariMat := mat.NewDense(xr, xr, nil)
 	for i := 0; i < xr; i++ {
 		errVariMat.Set(i, i, errVari)
 	}
 
 	//    V                   D                   UT        Z
 	// xc x xMinDim * xMinDim x xMinDim * xMinDim x xr = xc x xr
-	vd := mat64.NewDense(xc, xMinDim, nil)
+	vd := mat.NewDense(xc, xMinDim, nil)
 	vd.Mul(r.V, r.D)
-	z := mat64.NewDense(xc, xr, nil)
+	z := mat.NewDense(xc, xr, nil)
 	z.Mul(vd, r.U.T())
 
 	//    Z       ErrVar      ZT
 	// xc x xr * xr x xr * xr x xc
-	zerr := mat64.NewDense(xc, xr, nil)
+	zerr := mat.NewDense(xc, xr, nil)
 	zerr.Mul(z, errVariMat)
-	coefCovarMat := mat64.NewDense(xc, xc, nil)
+	coefCovarMat := mat.NewDense(xc, xc, nil)
 	coefCovarMat.Mul(zerr, z.T())
 	r.StdErrs = getDiag(coefCovarMat)
 }
 
-func getDiag(mat mat64.Matrix) []float64 {
+func getDiag(mat mat.Matrix) []float64 {
 	r, _ := mat.Dims()
 	diag := make([]float64, r)
 	for i := range diag {
@@ -162,7 +161,7 @@ func getDiag(mat mat64.Matrix) []float64 {
 	return diag
 }
 
-func setDiag(mat mat64.Mutable, d []float64) {
+func setDiag(mat mat.Mutable, d []float64) {
 	for i, v := range d {
 		mat.Set(i, i, v)
 	}
